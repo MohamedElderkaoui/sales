@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Analítico - RevIntel</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar de filtros -->
+        <aside class="sidebar">
+            <h2>🔍 Filtros</h2>
+            <form id="filters-form">
+                <div class="filter-group">
+                    <label for="date_from">Fecha desde</label>
+                    <input type="date" id="date_from" name="date_from">
+                </div>
+                <div class="filter-group">
+                    <label for="date_to">Fecha hasta</label>
+                    <input type="date" id="date_to" name="date_to">
+                </div>
+                <div class="filter-group">
+                    <label for="category">Categoría</label>
+                    <select id="category" name="category">
+                        <option value="">Todas</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}">{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="customer">Cliente</label>
+                    <select id="customer" name="customer">
+                        <option value="">Todos</option>
+                        {% for c in customers %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="search">Búsqueda</label>
+                    <input type="text" id="search" name="search" placeholder="Buscar...">
+                </div>
+                <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+                <button type="button" id="clear-filters" class="btn btn-secondary">Limpiar</button>
+            </form>
+            
+            <hr>
+            
+            <h3>📥 Exportar</h3>
+            <div class="export-buttons">
+                <a href="#" id="export-csv" class="btn btn-export">CSV</a>
+                <a href="#" id="export-pdf" class="btn btn-export">PDF</a>
+            </div>
+        </aside>
+
+        <!-- Contenido principal -->
+        <main class="main-content">
+            <header class="header">
+                <h1>📊 Dashboard de Ventas</h1>
+                <p id="last-update">Última actualización: <span>--</span></p>
+            </header>
+
+            <!-- KPIs -->
+            <section class="kpis-section">
+                <div class="kpi-card">
+                    <span class="kpi-icon">💰</span>
+                    <div class="kpi-data">
+                        <h3>Ventas Totales</h3>
+                        <p id="kpi-total-sales">$0.00</p>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-icon">📦</span>
+                    <div class="kpi-data">
+                        <h3>Total Órdenes</h3>
+                        <p id="kpi-total-orders">0</p>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-icon">📈</span>
+                    <div class="kpi-data">
+                        <h3>Promedio por Orden</h3>
+                        <p id="kpi-average-order">$0.00</p>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-icon">👥</span>
+                    <div class="kpi-data">
+                        <h3>Clientes Activos</h3>
+                        <p id="kpi-total-customers">0</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Gráficos -->
+            <section class="charts-section">
+                <div class="chart-container chart-large">
+                    <div class="chart-header">
+                        <h3>Tendencia de Ventas</h3>
+                        <select id="period-selector">
+                            <option value="day">Por día</option>
+                            <option value="month">Por mes</option>
+                        </select>
+                    </div>
+                    <canvas id="sales-trend-chart"></canvas>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Ventas por Categoría</h3>
+                    <canvas id="category-chart"></canvas>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Top 10 Productos</h3>
+                    <canvas id="products-chart"></canvas>
+                </div>
+
+                <div class="chart-container chart-full">
+                    <h3>Top 10 Clientes</h3>
+                    <canvas id="customers-chart"></canvas>
+                </div>
+            </section>
+
+            <!-- Tabla de datos -->
+            <section class="table-section">
+                <div class="table-header">
+                    <h3>📋 Detalle de Ventas</h3>
+                    <div class="table-search">
+                        <input type="text" id="table-search" placeholder="Buscar en tabla...">
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table id="sales-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Producto</th>
+                                <th>Categoría</th>
+                                <th>Cantidad</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sales-table-body">
+                            <!-- Se llena con JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <button id="prev-page" class="btn btn-small">← Anterior</button>
+                    <span id="page-info">Página 1 de 1</span>
+                    <button id="next-page" class="btn btn-small">Siguiente →</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
