@@ -4,6 +4,21 @@ from django.db.models import Count, Sum
 from django.utils.html import format_html
 from .models import GraphConfig
 
+# Helper: formatea dinero de forma consistente
+def money(value):
+    """Recibe Decimal/float/int y devuelve string formateado '$x,xxx.xx'."""
+    if value is None:
+        return "$0.00"
+    try:
+        # Si es Decimal, soporta el formato; si es float/int, f-string también funciona.
+        return f"${value:,.2f}"
+    except Exception:
+        # Fallback a conversión por str (seguro)
+        try:
+            return f"${float(value):,.2f}"
+        except Exception:
+            return str(value)
+
 
 class SaleInline(admin.TabularInline):
     """Inline para visualizar ventas asociadas al gráfico"""
@@ -11,27 +26,30 @@ class SaleInline(admin.TabularInline):
     extra = 1
     verbose_name = "Venta"
     verbose_name_plural = "Ventas Asociadas"
-    
+
     # Campos de solo lectura para mostrar info de la venta
     readonly_fields = ['get_sale_info']
     fields = ['sale', 'get_sale_info']
-    
+
     def get_sale_info(self, obj):
-        if obj.sale:
+        if getattr(obj, "sale", None):
+            total_fmt = money(obj.sale.total_price)
+            # formateamos total antes de pasarlo a format_html
             return format_html(
-                '<strong>{}</strong> - ${} ({})',
+                "<strong>{}</strong> - {} ({})",
                 obj.sale.customer.name,
-                obj.sale.total_price,
-                obj.sale.sale_date.strftime('%Y-%m-%d')
+                total_fmt,
+                obj.sale.sale_date.strftime("%Y-%m-%d")
             )
         return "-"
+
     get_sale_info.short_description = "Detalles de la Venta"
 
 
 @admin.register(GraphConfig)
 class GraphConfigAdmin(admin.ModelAdmin):
     """Administrador avanzado para configuración de gráficos"""
-    
+
     list_display = [
         'name',
         'chart_type',
@@ -40,27 +58,27 @@ class GraphConfigAdmin(admin.ModelAdmin):
         'created_at',
         'get_chart_icon'
     ]
-    
+
     list_filter = [
         'chart_type',
         'created_at',
     ]
-    
+
     search_fields = [
         'name',
         'sales__customer__name',
         'sales__product__name'
     ]
-    
+
     filter_horizontal = ['sales']
-    
+
     readonly_fields = [
         'created_at',
         'get_sales_count',
         'get_total_revenue',
         'get_sales_summary'
     ]
-    
+
     fieldsets = (
         ('Información Básica', {
             'fields': ('name', 'chart_type')
@@ -74,13 +92,13 @@ class GraphConfigAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     date_hierarchy = 'created_at'
-    
+
     actions = ['duplicate_graph_config', 'clear_sales']
-    
+
     # Métodos personalizados para list_display
-    
+
     @admin.display(description='Ventas', ordering='sales_count')
     def get_sales_count(self, obj):
         count = obj.sales.count()
@@ -90,14 +108,15 @@ class GraphConfigAdmin(admin.ModelAdmin):
             return format_html('<span style="color: orange;">{} ventas</span>', count)
         else:
             return format_html('<span style="color: green;">{} ventas</span>', count)
-    
+
     @admin.display(description='Ingresos Totales', ordering='total_revenue')
     def get_total_revenue(self, obj):
-        total = obj.sales.aggregate(total=Sum('total_price'))['total']
-        if total:
-            return format_html('<strong>${:,.2f}</strong>', total)
-        return '$0.00'
-    
+        # Usamos or 0 para evitar None
+        total = obj.sales.aggregate(total=Sum('total_price'))['total'] or 0
+        total_fmt = money(total)
+        # Pasamos ya la cadena formateada a format_html
+        return format_html('<strong>{}</strong>', total_fmt)
+
     @admin.display(description='Tipo')
     def get_chart_icon(self, obj):
         icons = {
@@ -105,37 +124,42 @@ class GraphConfigAdmin(admin.ModelAdmin):
             'line': '📈',
             'pie': '🥧'
         }
+        # obj.get_chart_type_display() devolverá la etiqueta legible del ChoiceField
         return format_html('{} {}', icons.get(obj.chart_type, '📉'), obj.get_chart_type_display())
-    
+
     @admin.display(description='Resumen de Ventas')
     def get_sales_summary(self, obj):
         """Muestra un resumen detallado de las ventas"""
         sales = obj.sales.all()
         if not sales:
             return "No hay ventas asociadas"
-        
+
         summary = []
         summary.append(f"<strong>Total de ventas:</strong> {sales.count()}<br>")
-        
+
         # Agrupar por cliente
         customers = sales.values('customer__name').annotate(
             count=Count('id'),
             total=Sum('total_price')
         ).order_by('-total')[:5]
-        
+
         if customers:
             summary.append("<strong>Top 5 Clientes:</strong><ul>")
             for customer in customers:
+                total_val = customer.get('total') or 0
+                total_fmt = money(total_val)
                 summary.append(
-                    f"<li>{customer['customer__name']}: "
-                    f"{customer['count']} ventas - ${customer['total']:,.2f}</li>"
+                    f"<li>{customer.get('customer__name')}: "
+                    f"{customer.get('count')} ventas - {total_fmt}</li>"
                 )
             summary.append("</ul>")
-        
+
+        # Si necesitas más agregados (por producto, por mes), agrégalos aquí con Sum/Count
+        # Devolvemos HTML seguro mediante format_html con la cadena completa
         return format_html(''.join(summary))
-    
+
     # Métodos para optimizar queries
-    
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         qs = qs.annotate(
@@ -143,9 +167,9 @@ class GraphConfigAdmin(admin.ModelAdmin):
             total_revenue=Sum('sales__total_price')
         )
         return qs.prefetch_related('sales', 'sales__customer', 'sales__product')
-    
+
     # Acciones personalizadas
-    
+
     @admin.action(description='Duplicar configuración de gráfico')
     def duplicate_graph_config(self, request, queryset):
         """Duplica las configuraciones de gráfico seleccionadas"""
@@ -157,12 +181,12 @@ class GraphConfigAdmin(admin.ModelAdmin):
             graph.save()
             graph.sales.set(sales)
             count += 1
-        
+
         self.message_user(
             request,
             f"{count} configuración(es) de gráfico duplicada(s) exitosamente."
         )
-    
+
     @admin.action(description='Limpiar ventas asociadas')
     def clear_sales(self, request, queryset):
         """Elimina todas las ventas asociadas a los gráficos seleccionados"""
@@ -170,18 +194,18 @@ class GraphConfigAdmin(admin.ModelAdmin):
         for graph in queryset:
             graph.sales.clear()
             count += 1
-        
+
         self.message_user(
             request,
             f"Ventas eliminadas de {count} gráfico(s)."
         )
-    
+
     # Personalización de formularios
-    
+
     def save_model(self, request, obj, form, change):
         """Agrega lógica personalizada al guardar"""
         super().save_model(request, obj, form, change)
-        
+
         # Log o notificación
         if change:
             self.message_user(
