@@ -85,15 +85,17 @@ class ReportAdmin(admin.ModelAdmin):
     @admin.display(description='Ingresos Totales', ordering='total_revenue')
     def get_total_revenue(self, obj):
         total = obj.sales.aggregate(total=Sum('total_price'))['total'] or 0
-        # Aseguramos que el valor sea numérico antes de aplicar el formato
+        # Aseguramos que el valor sea numérico y lo formateamos antes de pasarlo a format_html,
+        # ya que format_html convierte los argumentos a cadenas (SafeString) y no soporta {:,.2f}.
         try:
             from decimal import Decimal
             if not isinstance(total, (int, float, Decimal)):
                 total = Decimal(str(total))
+            formatted_total = f"${total:,.2f}"
         except Exception:
             # Si algo falla, mostramos 0 de forma segura
-            total = 0
-        return format_html('<strong style="color: green;">${:,.2f}</strong>', total)
+            formatted_total = "$0.00"
+        return format_html('<strong style="color: green;">{}</strong>', formatted_total)
     
     @admin.display(description='Antigüedad')
     def get_age(self, obj):

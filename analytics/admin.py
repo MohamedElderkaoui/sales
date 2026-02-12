@@ -78,9 +78,19 @@ class SalesMetricAdmin(admin.ModelAdmin):
     
     @admin.display(description='Margen (%)', ordering='profit')
     def get_profit_margin(self, obj):
-        if obj.revenue > 0:
-            margin = (obj.profit / obj.revenue) * 100
-            
+        """
+        Calcula y muestra el margen de beneficio.
+        Maneja correctamente valores None (por ejemplo, al crear un registro nuevo en el admin).
+        """
+        if not obj:
+            return '0%'
+
+        revenue = obj.revenue or 0
+        profit = obj.profit or 0
+
+        if revenue > 0 and profit is not None:
+            margin = (profit / revenue) * 100
+
             if margin > 40:
                 color = 'green'
             elif margin > 20:
@@ -89,18 +99,32 @@ class SalesMetricAdmin(admin.ModelAdmin):
                 color = 'orange'
             else:
                 color = 'red'
-            
+
+            # Preformateamos el número porque format_html
+            # convierte los argumentos en SafeString y rompe '{:.1f}'.
+            margin_str = f"{margin:.1f}%"
+
             return format_html(
-                '<strong style="color: {};">{:.1f}%</strong>',
+                '<strong style="color: {};">{}</strong>',
                 color,
-                margin
+                margin_str
             )
         return '0%'
     
     @admin.display(description='Rendimiento')
     def get_performance(self, obj):
-        if obj.revenue > 0:
-            margin = (obj.profit / obj.revenue) * 100
+        """
+        Devuelve una etiqueta de rendimiento basada en el margen.
+        Evita errores cuando revenue/profit son None.
+        """
+        if not obj:
+            return '-'
+
+        revenue = obj.revenue or 0
+        profit = obj.profit or 0
+
+        if revenue > 0 and profit is not None:
+            margin = (profit / revenue) * 100
             
             if margin > 40:
                 return format_html('<span style="color: green;">📈 Excelente</span>')
@@ -114,32 +138,43 @@ class SalesMetricAdmin(admin.ModelAdmin):
     
     @admin.display(description='ROI')
     def get_roi(self, obj):
-        """Return on Investment"""
-        if obj.revenue > 0:
-            cost = obj.revenue - obj.profit
+        """Return on Investment. Maneja correctamente valores None."""
+        if not obj:
+            return 'N/A'
+
+        revenue = obj.revenue or 0
+        profit = obj.profit or 0
+
+        if revenue > 0 and profit is not None:
+            cost = revenue - profit
             if cost > 0:
-                roi = (obj.profit / cost) * 100
+                roi = (profit / cost) * 100
+                # Igual que arriba, preformateamos para evitar '{:.1f}' en format_html.
+                roi_str = f"{roi:.1f}%"
                 return format_html(
-                    '<strong style="color: green;">{:.1f}%</strong>',
-                    roi
+                    '<strong style="color: green;">{}</strong>',
+                    roi_str
                 )
         return 'N/A'
     
     @admin.display(description='Detalles de la Venta')
     def get_sale_details(self, obj):
         sale = obj.sale
+        # Formateamos el precio total como cadena antes de usar format_html,
+        # para evitar el uso de {:,.2f} directamente en la plantilla de format_html.
+        total_str = f"${sale.total_price:,.2f}"
         return format_html(
             '<div style="padding: 10px; background: #f5f5f5; border-radius: 5px;">'
             '<strong>Cliente:</strong> {}<br>'
             '<strong>Producto:</strong> {}<br>'
             '<strong>Cantidad:</strong> {}<br>'
-            '<strong>Precio Total:</strong> ${:,.2f}<br>'
+            '<strong>Precio Total:</strong> {}<br>'
             '<strong>Fecha:</strong> {}'
             '</div>',
             sale.customer.name,
             sale.product.name,
             sale.quantity,
-            sale.total_price,
+            total_str,
             sale.sale_date.strftime('%Y-%m-%d %H:%M')
         )
     

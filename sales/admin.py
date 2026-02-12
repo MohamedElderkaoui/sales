@@ -1,5 +1,7 @@
 # sales/admin.py
 from django.contrib import admin
+from django.contrib.admin.utils import model_format_dict
+from django.db import models
 from django.db.models import Sum, Count, Avg, F
 from django.utils.html import format_html
 from .models import Customer, Product, Sale
@@ -168,7 +170,7 @@ class ProductAdmin(admin.ModelAdmin):
 
     list_filter = [
         'category',
-        ('sale', admin.EmptyFieldListFilter),
+        ('sales', admin.EmptyFieldListFilter),
     ]
 
     search_fields = ['name', 'category']
@@ -211,18 +213,18 @@ class ProductAdmin(admin.ModelAdmin):
 
     @admin.display(description='Ventas', ordering='sales_count')
     def get_sales_count(self, obj):
-        count = obj.sale_set.count()
+        count = obj.sales.count()
         return format_html('<strong>{}</strong> ventas', count)
 
     @admin.display(description='Ingresos', ordering='revenue')
     def get_revenue(self, obj):
-        total = obj.sale_set.aggregate(total=Sum('total_price'))['total'] or 0
+        total = obj.sales.aggregate(total=Sum('total_price'))['total'] or 0
         total_fmt = f'${total:,.2f}'
         return format_html('<strong style="color: green;">{}</strong>', total_fmt)
 
     @admin.display(description='Popularidad')
     def get_popularity(self, obj):
-        count = obj.sale_set.count()
+        count = obj.sales.count()
         if count == 0:
             return '⚪'
         elif count < 5:
@@ -236,12 +238,12 @@ class ProductAdmin(admin.ModelAdmin):
 
     @admin.display(description='Cantidad Promedio')
     def get_avg_quantity(self, obj):
-        avg = obj.sale_set.aggregate(avg=Avg('quantity'))['avg'] or 0
+        avg = obj.sales.aggregate(avg=Avg('quantity'))['avg'] or 0
         return f'{avg:.1f} unidades'
 
     @admin.display(description='Top Clientes')
     def get_top_customers(self, obj):
-        sales = obj.sale_set.select_related('customer').values(
+        sales = obj.sales.select_related('customer').values(
             'customer__name'
         ).annotate(
             total=Sum('total_price'),
@@ -263,10 +265,25 @@ class ProductAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         qs = qs.annotate(
-            sales_count=Count('sale'),
-            revenue=Sum('sale__total_price')
+            sales_count=Count('sales'),
+            revenue=Sum('sales__total_price')
         )
         return qs
+
+    def get_action_choices(self, request, default_choices=models.BLANK_CHOICE_DASH):
+        """
+        Igual que la implementación base pero tolerante a errores de formato
+        en las descripciones de acciones (por ejemplo, traducciones con %d).
+        """
+        choices = [] + list(default_choices)
+        for func, name, description in self.get_actions(request).values():
+            try:
+                desc = description % model_format_dict(self.opts)
+            except TypeError:
+                # Si la descripción no admite formateo con dict, úsala tal cual.
+                desc = description
+            choices.append((name, desc))
+        return choices
 
     # Acciones
 
