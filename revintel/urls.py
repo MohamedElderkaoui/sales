@@ -16,12 +16,36 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView,
+)
 
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    
-     path('dashboard/', include('dashboard.urls')),    # frontend templates
-    path('api/sales/', include('analytics.api_urls')), # endpoints para Chart.js
-    path('reports/', include('reports.urls')), 
+    # Home: frontend Django (dashboard)
+    path("", include("dashboard.urls"), name="home"),
+
+    path("admin/", admin.site.urls),
+
+    # Rutas adicionales de frontend Django clásico (si las amplías)
+    path("dashboard/", include("dashboard.urls")),
+    path("reports/", include("reports.urls")),
+
+    # API principal de ventas / analítica
+    path("api/sales/", include("analytics.api_urls")),  # endpoints para Chart.js y Reflex
+
+    # Esquema OpenAPI + documentación interactiva para *toda* la API
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="api-docs",
+    ),
+    path(
+        "api/redoc/",
+        SpectacularRedocView.as_view(url_name="schema"),
+        name="api-redoc",
+    ),
 ]

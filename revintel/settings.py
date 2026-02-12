@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     # 3rd party
     "rest_framework",
     "django_filters",
+    "drf_spectacular",
 
     # Local apps
     "sales",
@@ -166,6 +167,17 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
+    # Esquema OpenAPI centralizado para toda la API
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# Configuración de drf-spectacular (documentación OpenAPI/Swagger)
+SPECTACULAR_SETTINGS = {
+    "TITLE": "RevIntel API",
+    "DESCRIPTION": "API de analítica de ventas y dashboard para el proyecto RevIntel.",
+    "VERSION": "1.0.0",
+    # Detecta automáticamente los endpoints de todos los apps instalados
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 # ----------------------------------------

@@ -85,6 +85,14 @@ class ReportAdmin(admin.ModelAdmin):
     @admin.display(description='Ingresos Totales', ordering='total_revenue')
     def get_total_revenue(self, obj):
         total = obj.sales.aggregate(total=Sum('total_price'))['total'] or 0
+        # Aseguramos que el valor sea numérico antes de aplicar el formato
+        try:
+            from decimal import Decimal
+            if not isinstance(total, (int, float, Decimal)):
+                total = Decimal(str(total))
+        except Exception:
+            # Si algo falla, mostramos 0 de forma segura
+            total = 0
         return format_html('<strong style="color: green;">${:,.2f}</strong>', total)
     
     @admin.display(description='Antigüedad')
