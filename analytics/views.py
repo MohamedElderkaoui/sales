@@ -1,16 +1,26 @@
 # analytics/views.py
 from django.db.models import Sum, Count, Avg
 from django.db.models.functions import TruncDate, TruncMonth
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
 from django_filters import rest_framework as filters
-from datetime import datetime, timedelta
+from rest_framework import serializers
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from sales.models import Sale, Product, Customer
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiTypes,
+    extend_schema,
+    inline_serializer,
+)
+
+from sales.models import Customer, Product, Sale
 from .serializers import (
-    SaleSerializer, KPISerializer, SalesByPeriodSerializer,
-    SalesByCategorySerializer, TopCustomerSerializer, ProductDistributionSerializer
+    KPISerializer,
+    ProductDistributionSerializer,
+    SaleSerializer,
+    SalesByCategorySerializer,
+    SalesByPeriodSerializer,
+    TopCustomerSerializer,
 )
 
 
@@ -37,7 +47,29 @@ class SaleFilter(filters.FilterSet):
 
 class KPIView(APIView):
     """Métricas KPI generales"""
-    
+
+    @extend_schema(
+        summary="KPIs de ventas",
+        description=(
+            "Devuelve métricas agregadas de ventas (importe total, nº pedidos, "
+            "ticket medio y número de clientes únicos).\n\n"
+            "Permite filtrar por rango de fechas, categoría, producto, cliente y búsqueda "
+            "por nombre de cliente o producto."
+        ),
+        parameters=[
+            OpenApiParameter("date_from", OpenApiTypes.DATE, description="Fecha mínima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("date_to", OpenApiTypes.DATE, description="Fecha máxima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("category", OpenApiTypes.STR, description="Filtro por categoría de producto (icontains)"),
+            OpenApiParameter("product", OpenApiTypes.INT, description="ID del producto"),
+            OpenApiParameter("customer", OpenApiTypes.INT, description="ID del cliente"),
+            OpenApiParameter(
+                "search",
+                OpenApiTypes.STR,
+                description="Búsqueda por nombre de cliente o producto (icontains)",
+            ),
+        ],
+        responses={200: KPISerializer},
+    )
     def get(self, request):
         queryset = Sale.objects.all()
         filterset = SaleFilter(request.query_params, queryset=queryset)
@@ -64,7 +96,24 @@ class KPIView(APIView):
 
 class SalesByPeriodView(APIView):
     """Ventas agrupadas por día o mes"""
-    
+
+    @extend_schema(
+        summary="Ventas por periodo",
+        description=(
+            "Devuelve ventas agregadas por periodo (día o mes), con importe total y nº de pedidos.\n\n"
+            "Se puede controlar la granularidad con el parámetro `group_by`.\n"
+            "Admite los mismos filtros que el resto de endpoints de ventas."
+        ),
+        parameters=[
+            OpenApiParameter("group_by", OpenApiTypes.STR, enum=["day", "month"], description="Agrupar por día o mes"),
+            OpenApiParameter("date_from", OpenApiTypes.DATE, description="Fecha mínima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("date_to", OpenApiTypes.DATE, description="Fecha máxima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("category", OpenApiTypes.STR, description="Filtro por categoría de producto (icontains)"),
+            OpenApiParameter("product", OpenApiTypes.INT, description="ID del producto"),
+            OpenApiParameter("customer", OpenApiTypes.INT, description="ID del cliente"),
+        ],
+        responses={200: SalesByPeriodSerializer(many=True)},
+    )
     def get(self, request):
         queryset = Sale.objects.all()
         filterset = SaleFilter(request.query_params, queryset=queryset)
@@ -97,7 +146,22 @@ class SalesByPeriodView(APIView):
 
 class SalesByCategoryView(APIView):
     """Ventas agrupadas por categoría de producto"""
-    
+
+    @extend_schema(
+        summary="Ventas por categoría",
+        description=(
+            "Devuelve ventas agregadas por categoría de producto, incluyendo importe total "
+            "y número de pedidos por categoría."
+        ),
+        parameters=[
+            OpenApiParameter("date_from", OpenApiTypes.DATE, description="Fecha mínima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("date_to", OpenApiTypes.DATE, description="Fecha máxima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("category", OpenApiTypes.STR, description="Filtro por categoría de producto (icontains)"),
+            OpenApiParameter("product", OpenApiTypes.INT, description="ID del producto"),
+            OpenApiParameter("customer", OpenApiTypes.INT, description="ID del cliente"),
+        ],
+        responses={200: SalesByCategorySerializer(many=True)},
+    )
     def get(self, request):
         queryset = Sale.objects.all()
         filterset = SaleFilter(request.query_params, queryset=queryset)
@@ -123,7 +187,27 @@ class SalesByCategoryView(APIView):
 
 class TopCustomersView(APIView):
     """Top clientes por volumen de compra"""
-    
+
+    @extend_schema(
+        summary="Top clientes",
+        description=(
+            "Devuelve el ranking de clientes por volumen de compra (importe total y nº de pedidos)."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "limit",
+                OpenApiTypes.INT,
+                description="Número máximo de clientes a devolver",
+                default=10,
+            ),
+            OpenApiParameter("date_from", OpenApiTypes.DATE, description="Fecha mínima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("date_to", OpenApiTypes.DATE, description="Fecha máxima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("category", OpenApiTypes.STR, description="Filtro por categoría de producto (icontains)"),
+            OpenApiParameter("product", OpenApiTypes.INT, description="ID del producto"),
+            OpenApiParameter("customer", OpenApiTypes.INT, description="ID del cliente"),
+        ],
+        responses={200: TopCustomerSerializer(many=True)},
+    )
     def get(self, request):
         queryset = Sale.objects.all()
         filterset = SaleFilter(request.query_params, queryset=queryset)
@@ -152,7 +236,28 @@ class TopCustomersView(APIView):
 
 class ProductDistributionView(APIView):
     """Distribución de productos vendidos"""
-    
+
+    @extend_schema(
+        summary="Distribución de productos vendidos",
+        description=(
+            "Devuelve la distribución de productos vendidos, incluyendo cantidad total vendida "
+            "y facturación por producto."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "limit",
+                OpenApiTypes.INT,
+                description="Número máximo de productos a devolver",
+                default=10,
+            ),
+            OpenApiParameter("date_from", OpenApiTypes.DATE, description="Fecha mínima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("date_to", OpenApiTypes.DATE, description="Fecha máxima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("category", OpenApiTypes.STR, description="Filtro por categoría de producto (icontains)"),
+            OpenApiParameter("product", OpenApiTypes.INT, description="ID del producto"),
+            OpenApiParameter("customer", OpenApiTypes.INT, description="ID del cliente"),
+        ],
+        responses={200: ProductDistributionSerializer(many=True)},
+    )
     def get(self, request):
         queryset = Sale.objects.all()
         filterset = SaleFilter(request.query_params, queryset=queryset)
@@ -180,7 +285,46 @@ class ProductDistributionView(APIView):
 
 class SalesListView(APIView):
     """Lista de ventas con filtros y búsqueda"""
-    
+
+    @extend_schema(
+        summary="Listado detallado de ventas",
+        description=(
+            "Devuelve un listado paginado de ventas con información de cliente y producto.\n\n"
+            "Admite filtros avanzados (rango de fechas, categoría, producto, cliente y búsqueda "
+            "por nombre) y paginación mediante `page` y `per_page`."
+        ),
+        parameters=[
+            OpenApiParameter("page", OpenApiTypes.INT, description="Número de página (1-based)", default=1),
+            OpenApiParameter(
+                "per_page",
+                OpenApiTypes.INT,
+                description="Registros por página",
+                default=25,
+            ),
+            OpenApiParameter("date_from", OpenApiTypes.DATE, description="Fecha mínima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("date_to", OpenApiTypes.DATE, description="Fecha máxima de la venta (YYYY-MM-DD)"),
+            OpenApiParameter("category", OpenApiTypes.STR, description="Filtro por categoría de producto (icontains)"),
+            OpenApiParameter("product", OpenApiTypes.INT, description="ID del producto"),
+            OpenApiParameter("customer", OpenApiTypes.INT, description="ID del cliente"),
+            OpenApiParameter(
+                "search",
+                OpenApiTypes.STR,
+                description="Búsqueda por nombre de cliente o producto (icontains)",
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="SalesListResponse",
+                fields={
+                    "data": SaleSerializer(many=True),
+                    "total": serializers.IntegerField(),
+                    "page": serializers.IntegerField(),
+                    "per_page": serializers.IntegerField(),
+                    "total_pages": serializers.IntegerField(),
+                },
+            )
+        },
+    )
     def get(self, request):
         queryset = Sale.objects.select_related('customer', 'product').all()
         filterset = SaleFilter(request.query_params, queryset=queryset)

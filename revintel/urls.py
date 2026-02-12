@@ -25,12 +25,11 @@ from drf_spectacular.views import (
 
 urlpatterns = [
     # Home: frontend Django (dashboard)
-    path("", include("dashboard.urls"), name="home"),
+    path("", include("dashboard.urls")),
 
     path("admin/", admin.site.urls),
 
     # Rutas adicionales de frontend Django clásico (si las amplías)
-    path("dashboard/", include("dashboard.urls")),
     path("reports/", include("reports.urls")),
 
     # API principal de ventas / analítica
